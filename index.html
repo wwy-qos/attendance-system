@@ -6,56 +6,174 @@
     <title>智慧點名系統</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; font-family: 'Microsoft JhengHei'; }
-        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .card-header { background: #4361ee; color: white; }
+        body { 
+            background-color: #f8f9fa; 
+            font-family: 'Microsoft JhengHei', sans-serif;
+            padding: 20px;
+        }
+        .card { 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            margin-bottom: 20px; 
+            border: none;
+            border-radius: 10px;
+        }
+        .card-header { 
+            background: linear-gradient(90deg, #4361ee 0%, #3a0ca3 100%);
+            color: white; 
+            border-radius: 10px 10px 0 0 !important;
+        }
+        .btn-primary {
+            background-color: #4361ee;
+            border: none;
+        }
+        .btn-primary:hover {
+            background-color: #3a0ca3;
+        }
+        #loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        #errorMessage {
+            color: red;
+            display: none;
+            padding: 10px;
+            background: #ffe6e6;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
+    <div class="container">
         <h1 class="text-center mb-4">智慧點名系統</h1>
         
+        <!-- 錯誤訊息 -->
+        <div id="errorMessage"></div>
+
         <div class="card">
-            <div class="card-header"><h5>學生列表</h5></div>
-            <div class="card-body" id="studentList">
-                <p>載入中...</p>
+            <div class="card-header"><h5 class="mb-0">學生列表</h5></div>
+            <div class="card-body">
+                <div id="loading">載入中...</div>
+                <div id="studentList" style="display: none;"></div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header"><h5>今日點名</h5></div>
+            <div class="card-header"><h5 class="mb-0">今日點名</h5></div>
             <div class="card-body">
-                <button class="btn btn-primary" onclick="markAttendance()">提交點名</button>
+                <button class="btn btn-primary" id="submitBtn" disabled>
+                    提交點名
+                </button>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // 在這裡貼上你的 Supabase 資訊
-        const supabaseUrl = "你的_SUPABASE_URL";
-        const supabaseKey = "你的_SUPABASE_ANON_KEY";
+        // ==================== 重要：替換成你的真實Supabase信息 ====================
+        const supabaseUrl = "https://xsvykagvvfhdubwoprcu.supabase.co";  // ← 換成你的真實URL
+        const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzdnlrYWd2dmZoZHVid29wcmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3Mjc3NDksImV4cCI6MjA3MzMwMzc0OX0.M-rzjGSYWmZvkF5oCLG_2alqCLNlxL91gYKm1wseaJk"; // ← 換成你的真實Key
+        // ======================================================================
+        
+        console.log('Supabase URL:', supabaseUrl);
+        console.log('Supabase Key:', supabaseKey ? '已設置' : '未設置');
+
+        // 初始化 Supabase
         const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-        // 加載學生
+        // 加載學生函數
         async function loadStudents() {
-            const { data, error } = await supabase.from('students').select('*');
-            if (error) console.error(error);
-            else {
-                let html = '';
-                data.forEach(student => {
-                    html += `<div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="s${student.id}">
-                        <label class="form-check-label" for="s${student.id}">
-                            ${student.name} (${student.student_id})
-                        </label>
-                    </div>`;
-                });
-                document.getElementById('studentList').innerHTML = html;
+            try {
+                console.log('開始加載學生數據...');
+                
+                const { data, error } = await supabase
+                    .from('students')
+                    .select('*')
+                    .order('name');
+
+                if (error) {
+                    throw error;
+                }
+
+                console.log('獲取到數據:', data);
+
+                if (data && data.length > 0) {
+                    let html = '';
+                    data.forEach(student => {
+                        html += `
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" 
+                                   id="s${student.id}" 
+                                   data-student-id="${student.student_id}">
+                            <label class="form-check-label" for="s${student.id}">
+                                ${student.name} (${student.student_id}) - ${student.class}
+                            </label>
+                        </div>`;
+                    });
+                    
+                    document.getElementById('studentList').innerHTML = html;
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('studentList').style.display = 'block';
+                    document.getElementById('submitBtn').disabled = false;
+                    
+                } else {
+                    document.getElementById('loading').innerHTML = '沒有學生數據，請先添加學生';
+                }
+
+            } catch (error) {
+                console.error('加載錯誤:', error);
+                showError('加載失敗: ' + error.message);
+                document.getElementById('loading').innerHTML = '加載失敗，請檢查控制台';
             }
         }
 
-        loadStudents();
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        // 提交點名函數
+        async function markAttendance() {
+            try {
+                const checkboxes = document.querySelectorAll('.form-check-input:checked');
+                const today = new Date().toISOString().split('T')[0];
+                
+                for (const checkbox of checkboxes) {
+                    const studentId = checkbox.dataset.studentId;
+                    
+                    const { error } = await supabase
+                        .from('attendance')
+                        .insert([
+                            { 
+                                student_id: studentId, 
+                                date: today, 
+                                status: 'present' 
+                            }
+                        ]);
+
+                    if (error) {
+                        console.error('記錄錯誤:', error);
+                    }
+                }
+                
+                alert('點名完成！');
+                
+            } catch (error) {
+                console.error('點名錯誤:', error);
+                alert('點名失敗: ' + error.message);
+            }
+        }
+
+        // 頁面加載時執行
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('頁面已加載，開始初始化...');
+            loadStudents();
+            
+            // 正確綁定點擊事件
+            document.getElementById('submitBtn').addEventListener('click', markAttendance);
+        });
     </script>
 </body>
 </html>
